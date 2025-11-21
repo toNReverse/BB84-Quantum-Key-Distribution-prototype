@@ -65,16 +65,19 @@ def BB84_single_circuit(n, noise_level=0.0, intercept=False):
     bob_key   = [bob_bits[i]  for i in matching]
 
     if len(alice_key) == 0:
-        return 0, [], [], 0
+        return 0, [], [], 0, qc
 
     errors = sum(a != b for a,b in zip(alice_key, bob_key))
     qber = errors / len(alice_key)
 
-    return qber, alice_key, bob_key, matching
+    return qber, alice_key, bob_key, matching, qc
 
+# ==========================
 # Esempio di esecuzione
-qber, alice_key, bob_key, matching = BB84_single_circuit(
-    n=100,
+# ==========================
+
+qber, alice_key, bob_key, matching, qc = BB84_single_circuit(
+    n=20,
     noise_level=0.05,
     intercept=False
 )
@@ -87,7 +90,6 @@ print("Bob:  ", bob_key)
 # Parte grafica BB84
 # ==========================
 
-# Simulazione semplificata per grafici
 def simulate_bb84_graph(n_bits=100, noise_prob=0.0, eve_prob=0.0):
     sender_bits  = [random.randint(0,1) for _ in range(n_bits)]
     sender_bases = [random.choice(['+', 'x']) for _ in range(n_bits)]
@@ -113,7 +115,6 @@ def simulate_bb84_graph(n_bits=100, noise_prob=0.0, eve_prob=0.0):
 
         receiver_bits.append(bit)
 
-    # Calcolo QBER sulle basi coincidenti
     matching = [i for i in range(n_bits) if sender_bases[i] == receiver_bases[i]]
     if len(matching) == 0:
         return 0
@@ -132,13 +133,28 @@ plt.ylabel("QBER (%)")
 plt.grid(True)
 plt.show()
 
-# ---- Grafico 2: QBER con e senza intercettazione (valori fissi come screenshot) ----
+# ---- Grafico 2: QBER con e senza intercettazione (semplificato) ----
 no_eve = simulate_bb84_graph(n_bits=100, noise_prob=0.0, eve_prob=0.0)
 with_eve = simulate_bb84_graph(n_bits=100, noise_prob=0.0, eve_prob=0.3)
 
 plt.figure(figsize=(6,4))
 plt.bar(["No Eve", "With Eve"], [no_eve, with_eve], color=['green','red'])
 plt.title("QBER With vs Without Unauthorized Interception")
-plt.ylabel("QBER (Quantum Bit Error Rate %)")
+plt.ylabel("QBER (%)")
 plt.ylim(0,5)
 plt.show()
+
+# ==========================
+# Simulazione Aer reale aggiunta
+# ==========================
+
+# ==========================
+# Simulazione Aer reale aggiunta
+# ==========================
+
+sim = AerSimulator()
+transpiled_circuit = transpile(qc, sim)
+result = sim.run(transpiled_circuit, shots=1024).result()
+counts = result.get_counts()
+
+print("Counts dall'esecuzione Aer:", counts)
