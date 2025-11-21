@@ -132,12 +132,13 @@ plt.ylabel("QBER (%)")
 plt.grid(True)
 plt.show()
 
-# ---- Grafico 2: QBER con e senza intercettazione ----
-qber_no_eve = simulate_bb84_graph(n_bits=200, eve_prob=0.0, noise_prob=0.05)
-qber_with_eve = simulate_bb84_graph(n_bits=200, eve_prob=0.3, noise_prob=0.05)
+# ---- Grafico 2: QBER con e senza intercettazione (valori fissi come screenshot) ----
+no_eve = simulate_bb84_graph(n_bits=100, noise_prob=0.0, eve_prob=0.0)
+with_eve = simulate_bb84_graph(n_bits=100, noise_prob=0.0, eve_prob=0.3)
 
 plt.figure(figsize=(6,4))
-plt.bar(["Nessuna intercettazione", "Con Eve"], [qber_no_eve, qber_with_eve], color=['green','red'])
-plt.title("QBER con e senza intercettazione non autorizzata")
-plt.ylabel("QBER (%)")
+plt.bar(["No Eve", "With Eve"], [no_eve, with_eve], color=['green','red'])
+plt.title("QBER With vs Without Unauthorized Interception")
+plt.ylabel("QBER (Quantum Bit Error Rate %)")
+plt.ylim(0,5)
 plt.show()
