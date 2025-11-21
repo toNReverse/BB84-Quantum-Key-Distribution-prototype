@@ -1,176 +1,143 @@
-# Implementation of the BB84 Protocol con Noisy simulator
-
-
 from qiskit import QuantumCircuit, QuantumRegister, transpile, ClassicalRegister
 from qiskit_aer import AerSimulator
 from qiskit_aer.noise import NoiseModel, depolarizing_error
 import random
+import numpy as np
+import matplotlib.pyplot as plt
+
+# ==========================
+# Funzioni BB84 originali
+# ==========================
 
 def get_noise_model(prob_error):
     noise_model = NoiseModel()
-    # Creiamo un errore di depolarizzazione (il qubit perde informazione)
-    # Questo simula il rumore che colpisce le porte logiche o la trasmissione
     error = depolarizing_error(prob_error, 1)
-    # Aggiungiamo questo errore alle porte base (H, X) e alla Misura
     noise_model.add_all_qubit_quantum_error(error, ['h', 'x', 'measure'])
     return noise_model
- 
-# simulate a quantum circuit and returns the measurement
-def simulate(qc, noise_model=None   ):
-    simulator = AerSimulator(noise_model=noise_model)
-    compiled_circuit = transpile(qc, simulator)
-    result = simulator.run(compiled_circuit, shots=1024).result()
-    counts = result.get_counts()
-    return int(list(counts.keys())[0])
 
-
-def randbit():
-    qc = QuantumCircuit(1, 1)
-    qc.h(0)
-    qc.measure(0, 0)
-    return simulate(qc)
-
-
-def random_sequence(n):
-    s = []
-    for i in range(n):
-        s.append(randbit())
-    return s
-
+def random_bits(n):
+    return [random.randint(0,1) for _ in range(n)]
 
 def random_bases(n):
-    b = []
-    s = random_sequence(n)
-    for i in range(n):
-        if (s[i] == 1):
-            b.append("Z")
-        else:
-            b.append("X")
-    return b
+    return [random.choice(['X','Z']) for _ in range(n)]
 
-
-def encode_message(bits, bases):
-    message = []
-    for i in range(len(bits)):
-        qc = QuantumCircuit(1, 1)
-        if (bits[i] == 1):
-            qc.x(0)
-        if (bases[i] == "X"):
-            qc.h(0)
-        qc.barrier()
-        message.append(qc)
-    return message
-
-
-def measure_message(message, bases):
-    n = len(message)
-    for i in range(n):
-        qc = message[i]
-        if (bases[i] == "X"):
-            qc.h(0)
-        qc.barrier()
-        qc.measure(0, 0)
-        message[i] = qc
-    return message
-
-
-def decode_message(message, bases, noise_model=None):
-    bits = []
-    measure_message(message, bases)
-    for i in range(len(message)):
-        qc = message[i]
-        bits.append(simulate(qc, noise_model))
-    return bits
-
-
-def getSampleIdx(n):
-    idx = list(range(n))
-    random.shuffle(idx)
-    idx = idx[:int(n / 2)]
-    return idx
-
-
-def BB84(n, noise_level=0.0, intercept=False, verbose=True):
-    #noise_level (0.0 = no rumore, 0.1 = 10% rumore)
-    noise_model = None
-    if noise_level > 0:
-        noise_model = get_noise_model(noise_level)
-        if verbose: print(f"Rumore al {noise_level * 100}%")
-    # Alice sceglie n bits in modo casuale
-    alice_bits = random_sequence(n)
-    if verbose:
-        print("Alice's Bits:")
-        print(alice_bits)
-    # Alice sceglie n Basi in modo casuale
+def BB84_single_circuit(n, noise_level=0.0, intercept=False):
+    alice_bits  = random_bits(n)
     alice_bases = random_bases(n)
-    if verbose:
-        print("Alice's Bases:")
-        print(alice_bases)
-    # Alice prepara il messaggio
-    message = encode_message(alice_bits, alice_bases)
-    # Alice invia il messaggio a Bob
+    qc = QuantumCircuit(n, n)
 
-    if (intercept):
-        # avviene una intercettazione
-        eve_bases = ["Z"] * n
-        measure_message(message, eve_bases)
+    # Codifica Alice
+    for i in range(n):
+        if alice_bits[i] == 1:
+            qc.x(i)
+        if alice_bases[i] == 'X':
+            qc.h(i)
 
-    # Bob sceglie n Basi in modo casuale
+    # Intercettazione Eve
+    if intercept:
+        eve_bases = random_bases(n)
+        for i in range(n):
+            if eve_bases[i] == 'X':
+                qc.h(i)
+            qc.measure(i, i)
+            qc.reset(i)
+            if alice_bits[i] == 1:
+                qc.x(i)
+            if alice_bases[i] == 'X':
+                qc.h(i)
+
+    # Basi Bob
     bob_bases = random_bases(n)
-    if verbose:
-        print("Bob's Bases:")
-        print(bob_bases)
-    # Bob effettua la misurazione degli n qubits
-    bob_bits = decode_message(message, bob_bases, noise_model=noise_model)
-    if verbose:
-        print("Bob's Bits:")
-        print(bob_bits)
+    for i in range(n):
+        if bob_bases[i] == 'X':
+            qc.h(i)
+        qc.measure(i, i)
 
-    # alice e bob si scambiano le basi e le conforntano
-    match = [i for i in range(n) if bob_bases[i] == alice_bases[i]]
-    # Alice e Bob creano le loro chiavi segrete
-    alice_key = [str(alice_bits[i]) for i in match]
-    bob_key = [str(bob_bits[i]) for i in match]
-    if verbose:
-        print("Chiave di Alice:")
-        print("".join(alice_key))
-        print("Chiave di Bob:")
-        print("".join(bob_key))
+    # Simulazione
+    noise_model = get_noise_model(noise_level) if noise_level > 0 else None
+    simulator = AerSimulator(noise_model=noise_model)
+    result = simulator.run(qc, shots=1).result()
+    measured = list(result.get_counts().keys())[0][::-1]
+    bob_bits = list(map(int, measured))
 
-    sample = getSampleIdx(len(bob_key))
-    alice_sample = [alice_key[i] for i in sample]
-    bob_sample = [bob_key[i] for i in sample]
-    if (alice_sample == bob_sample):
-        # nessuna intercettazione
-        if verbose:
-            print("Chiave valida:")
-        alice_key = [alice_key[i] for i in range(len(alice_key)) if i not in sample]
-        # print(alice_key)
-        bob_key = [bob_key[i] for i in range(len(bob_key)) if i not in sample]
-        # print(bob_key)
-        if (alice_key == bob_key):
-            if verbose:
-                print("".join(bob_key))
-                print("Lunghezza della chiave: " + str(len(bob_key)))
-            return 0
-        else:
-            if verbose:
-                print("Errore")
-            return 1
-    else:
-        if verbose:
-            print("Attenzione, messaggio intercettato. Chiave non è sicura")
+    matching = [i for i in range(n) if alice_bases[i] == bob_bases[i]]
+    alice_key = [alice_bits[i] for i in matching]
+    bob_key   = [bob_bits[i]  for i in matching]
+
+    if len(alice_key) == 0:
+        return 0, [], [], 0
+
+    errors = sum(a != b for a,b in zip(alice_key, bob_key))
+    qber = errors / len(alice_key)
+
+    return qber, alice_key, bob_key, matching
+
+# Esempio di esecuzione
+qber, alice_key, bob_key, matching = BB84_single_circuit(
+    n=100,
+    noise_level=0.05,
+    intercept=False
+)
+
+print("QBER:", qber)
+print("Alice:", alice_key)
+print("Bob:  ", bob_key)
+
+# ==========================
+# Parte grafica BB84
+# ==========================
+
+# Simulazione semplificata per grafici
+def simulate_bb84_graph(n_bits=100, noise_prob=0.0, eve_prob=0.0):
+    sender_bits  = [random.randint(0,1) for _ in range(n_bits)]
+    sender_bases = [random.choice(['+', 'x']) for _ in range(n_bits)]
+    receiver_bases = [random.choice(['+', 'x']) for _ in range(n_bits)]
+    receiver_bits = []
+
+    for i in range(n_bits):
+        bit = sender_bits[i]
+
+        # Eve intercetta
+        if random.random() < eve_prob:
+            eve_basis = random.choice(['+', 'x'])
+            if eve_basis != sender_bases[i]:
+                bit = random.randint(0,1)
+
+        # Rumore
+        if random.random() < noise_prob:
+            bit = 1 - bit
+
+        # Misura Bob
+        if sender_bases[i] != receiver_bases[i]:
+            bit = random.randint(0,1)
+
+        receiver_bits.append(bit)
+
+    # Calcolo QBER sulle basi coincidenti
+    matching = [i for i in range(n_bits) if sender_bases[i] == receiver_bases[i]]
+    if len(matching) == 0:
         return 0
+    errors = sum(sender_bits[i] != receiver_bits[i] for i in matching)
+    return (errors / len(matching)) * 100
 
+# ---- Grafico 1: Effetto del rumore ----
+noise_values = np.linspace(0, 0.3, 7)
+qbers_noise = [simulate_bb84_graph(n_bits=200, noise_prob=n) for n in noise_values]
 
-def testBB84(n, run):
-    errors = 0
-    for i in range(run):
-        errors = errors + BB84(n, 0.0,True, False)
-    print("Il protocollo ha fallito nel " + str(errors * 100 / run) + "% dei casi")
+plt.figure(figsize=(8,4))
+plt.plot(noise_values, qbers_noise, marker='o', linewidth=2, color='blue')
+plt.title("Effetto del rumore sul QBER")
+plt.xlabel("Probabilità di rumore")
+plt.ylabel("QBER (%)")
+plt.grid(True)
+plt.show()
 
+# ---- Grafico 2: QBER con e senza intercettazione ----
+qber_no_eve = simulate_bb84_graph(n_bits=200, eve_prob=0.0, noise_prob=0.05)
+qber_with_eve = simulate_bb84_graph(n_bits=200, eve_prob=0.3, noise_prob=0.05)
 
-n_bit = 20
-n_run = 4
-BB84(n = n_bit, noise_level=0.0, intercept=False, verbose=True)
-testBB84(n=n_bit, run=n_run)
+plt.figure(figsize=(6,4))
+plt.bar(["Nessuna intercettazione", "Con Eve"], [qber_no_eve, qber_with_eve], color=['green','red'])
+plt.title("QBER con e senza intercettazione non autorizzata")
+plt.ylabel("QBER (%)")
+plt.show()
