@@ -5,9 +5,6 @@ import random
 import numpy as np
 import matplotlib.pyplot as plt
 
-# ==========================
-# Funzioni BB84 originali
-# ==========================
 
 def get_noise_model(prob_error, readout_noise=False):
     noise_model = NoiseModel()
@@ -115,7 +112,7 @@ print("Alice:", alice_key)
 print("Bob:  ", bob_key)
 
 # ==========================
-# Parte grafica BB84 (tuo codice)
+# Parte grafica BB84 
 # ==========================
 
 def simulate_bb84_graph(n_bits=100, noise_prob=0.0, eve_prob=0.0):
@@ -127,7 +124,7 @@ def simulate_bb84_graph(n_bits=100, noise_prob=0.0, eve_prob=0.0):
     for i in range(n_bits):
         bit = sender_bits[i]
 
-        # Eve (versione semplice per grafico)
+        # Eve
         if random.random() < eve_prob:
             eve_basis = random.choice(['+', 'x'])
             if eve_basis != sender_bases[i]:
@@ -185,7 +182,7 @@ counts = result.get_counts()
 print("Counts dall'esecuzione Aer:", counts)
 
 # ==========================
-# 📌 NUOVO GRAFICO: QBER vs lunghezza chiave
+# QBER vs lunghezza chiave
 # ==========================
 
 def qber_vs_key_length(lengths, noise_level=0.0, intercept=False, shots=20, readout_noise=True):
