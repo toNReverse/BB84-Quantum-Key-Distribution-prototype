@@ -94,13 +94,12 @@ def BB84_single_circuit(n, noise_level=0.0, intercept=False, readout_noise=False
     errors = sum(a != b for a,b in zip(alice_key, bob_key))
     qber = errors / len(alice_key)
 
-    return qber, alice_key, bob_key, matching, qc
-
+    return qber, alice_key, bob_key, matching, qc, alice_bases, bob_bases
 # ==========================
 # Esempio di esecuzione BB84
 # ==========================
 
-qber, alice_key, bob_key, matching, qc = BB84_single_circuit(
+qber, alice_key, bob_key, matching, qc, alice_bases, bob_bases = BB84_single_circuit(
     n=20,
     noise_level=0.05,
     intercept=False,
@@ -110,6 +109,9 @@ qber, alice_key, bob_key, matching, qc = BB84_single_circuit(
 print("QBER:", qber)
 print("Alice:", alice_key)
 print("Bob:  ", bob_key)
+
+print("Basi Alice (A→Z, a→X):", alice_bases)
+print("Basi Bob   (A→Z, a→X):", bob_bases)
 
 # ==========================
 # Parte grafica BB84 
